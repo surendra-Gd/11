@@ -1235,9 +1235,9 @@
       });
     }
 
-    function loadSession() { try { const s = sessionStorage.getItem("it_session"); if (s) SESSION = JSON.parse(s); } catch (e) { } }
-    function saveSession(s) { SESSION = s; sessionStorage.setItem("it_session", JSON.stringify(s)); }
-    function clearSession() { SESSION = null; sessionStorage.removeItem("it_session"); }
+    function loadSession() { try { const s = localStorage.getItem("it_session"); if (s) SESSION = JSON.parse(s); } catch (e) { } }
+    function saveSession(s) { SESSION = s; localStorage.setItem("it_session", JSON.stringify(s)); }
+    function clearSession() { SESSION = null; localStorage.removeItem("it_session"); }
 
     // ── Extract short location: "City, State" from full address ──
     function shortLocation(addr) {
