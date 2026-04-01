@@ -294,8 +294,9 @@
     }
 
     .btn-green:disabled {
-      opacity: .5;
-      cursor: not-allowed
+      opacity: .6;
+      cursor: not-allowed;
+      transform: none !important
     }
 
     .btn-sm {
@@ -330,8 +331,19 @@
     .loader-sm {
       width: 16px;
       height: 16px;
-      border: 2.5px solid rgba(255, 255, 255, .2);
-      border-top-color: #fff;
+      border: 2.5px solid rgba(255, 255, 255, .25);
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      flex-shrink: 0
+    }
+
+    /* green-tinted loader for green button */
+    .loader-sm-dark {
+      width: 15px;
+      height: 15px;
+      border: 2.5px solid rgba(4, 32, 14, .3);
+      border-top-color: #04200e;
       border-radius: 50%;
       animation: spin .6s linear infinite;
       flex-shrink: 0
@@ -587,6 +599,63 @@
       gap: 10px
     }
 
+    /* ── Skeleton loader for leads ── */
+    .skeleton-card {
+      background: var(--s1);
+      border: 1px solid var(--b1);
+      border-radius: var(--r2);
+      padding: 15px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px
+    }
+
+    .skel-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px
+    }
+
+    .skel {
+      background: linear-gradient(90deg, var(--b1) 25%, var(--b2) 50%, var(--b1) 75%);
+      background-size: 200% 100%;
+      border-radius: 6px;
+      animation: shimmer 1.4s infinite
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: 200% 0
+      }
+
+      100% {
+        background-position: -200% 0
+      }
+    }
+
+    .skel-title {
+      height: 16px;
+      width: 55%
+    }
+
+    .skel-badge {
+      height: 22px;
+      width: 22%;
+      border-radius: 99px
+    }
+
+    .skel-sub {
+      height: 13px;
+      width: 38%
+    }
+
+    .skel-sub2 {
+      height: 13px;
+      width: 22%
+    }
+
+    /* ── Lead cards ── */
     .lead-card {
       background: var(--s1);
       border: 1px solid var(--b1);
@@ -665,18 +734,6 @@
       font-size: 10px
     }
 
-    .badge-web {
-      background: rgba(33, 208, 122, .1);
-      color: var(--green);
-      font-size: 10px
-    }
-
-    .badge-noweb {
-      background: rgba(74, 85, 104, .15);
-      color: var(--t3);
-      font-size: 10px
-    }
-
     .lc-row2 {
       display: flex;
       align-items: center;
@@ -705,17 +762,6 @@
 
     .lc-loc {
       font-size: 12px;
-      color: var(--t3)
-    }
-
-    .lc-rating {
-      font-size: 12px;
-      color: var(--amber);
-      font-family: var(--mono)
-    }
-
-    .lc-reviews {
-      font-size: 11px;
       color: var(--t3)
     }
 
@@ -1152,7 +1198,7 @@
 
   <script>
     // ── CONFIG ────────────────────────────────────────
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxqdgo1x3XNAQAKk52Uk2HLEIo9jZYBn5k8mJsrnS-7blugFIZHYNIAvDlBptwxD4oJ/exec";
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwDZlPNTWmBmopuitiKJ8l1sBbA78SjKEHj9sn08w9xG9LgkxixUiBkmUKviH9VZj7X/exec";
 
     let SESSION = null, ALL_LEADS = [], ACTIVE_FILTER = "all", EXPANDED_ROW = null, SYNC_INTERVAL = null;
 
@@ -1192,6 +1238,23 @@
     function loadSession() { try { const s = sessionStorage.getItem("it_session"); if (s) SESSION = JSON.parse(s); } catch (e) { } }
     function saveSession(s) { SESSION = s; sessionStorage.setItem("it_session", JSON.stringify(s)); }
     function clearSession() { SESSION = null; sessionStorage.removeItem("it_session"); }
+
+    // ── Extract short location: "City, State" from full address ──
+    function shortLocation(addr) {
+      if (!addr) return "";
+      // Common pattern: "..., City, State, Country" or "City, State"
+      const parts = addr.split(",").map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        // Take last 2 parts, drop known country strings
+        const skipWords = ["india", "भारत"];
+        const filtered = parts.filter(p => !skipWords.includes(p.toLowerCase()));
+        if (filtered.length >= 2) {
+          return filtered[filtered.length - 2] + ", " + filtered[filtered.length - 1];
+        }
+        return filtered[filtered.length - 1] || parts[0];
+      }
+      return parts[0] || addr;
+    }
 
     async function doLogin() {
       const user = $("inp-user").value.trim();
@@ -1235,11 +1298,31 @@
       SYNC_INTERVAL = setInterval(refreshLeads, 60000);
     }
 
-    async function refreshLeads() {
+    // ── Show skeleton cards while loading ──
+    function showSkeletons(count = 5) {
+      const container = $("leads-list");
+      container.innerHTML = Array.from({ length: count }, () => `
+        <div class="skeleton-card">
+          <div class="skel-row">
+            <div class="skel skel-title"></div>
+            <div class="skel skel-badge"></div>
+          </div>
+          <div class="skel-row">
+            <div class="skel skel-sub"></div>
+            <div class="skel skel-sub2"></div>
+          </div>
+        </div>`).join("");
+      $("leads-count").textContent = "…";
+      $("stat-total").textContent = "…";
+      $("stat-pending").textContent = "…";
+      $("stat-done").textContent = "…";
+    }
+
+    async function refreshLeads(silent = false) {
+      if (!silent) showSkeletons();
       try {
         const res = await callAPI({ action: "getLeads", sheetUrl: SESSION.sheetUrl });
         const raw = res.leads || [];
-        // Sort: not responded first
         ALL_LEADS = raw.sort((a, b) => {
           const ar = (a["responded"] || "").toLowerCase() === "yes";
           const br = (b["responded"] || "").toLowerCase() === "yes";
@@ -1251,6 +1334,14 @@
         $("sync-time").textContent = "Updated " + now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
       } catch (e) {
         showToast("Sync failed: " + e.message, "error");
+        if (!ALL_LEADS.length) {
+          $("leads-list").innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">⚠️</div>
+              <div class="empty-text">Failed to load leads</div>
+              <div class="empty-sub">Check connection and try syncing again</div>
+            </div>`;
+        }
       }
     }
 
@@ -1304,11 +1395,8 @@
         const rowId = "lead-" + lead._rowIndex;
         const timeSpend = lead["time_spend"] || "";
         const finalResult = lead["final_result"] || "";
-        const hasWebsite = (lead["has_website"] || "").toLowerCase() === "yes";
-        const rating = lead["rating"] || "";
-        const reviews = lead["reviews"] || "";
         const website = lead["website"] || "";
-        const address = lead["address"] || "";
+        const locShort = shortLocation(lead["address"] || "");
 
         return `
 <div class="lead-card${responded ? " responded" : ""}" id="${rowId}">
@@ -1318,15 +1406,12 @@
       <div class="lc-badges">
         <span class="badge ${responded ? "badge-done" : "badge-pending"}">${responded ? "✓ Contacted" : "Pending"}</span>
         ${lead["category"] ? `<span class="badge badge-cat">${escHtml(lead["category"])}</span>` : ""}
-        <span class="badge ${hasWebsite ? "badge-web" : "badge-noweb"}">${hasWebsite ? "🌐 Has Website" : "No Website"}</span>
       </div>
     </div>
     <div class="lc-row2">
       ${lead["phone"] ? `<a class="lc-phone" href="tel:${escHtml(lead["phone"])}" onclick="event.stopPropagation()">${escHtml(lead["phone"])}</a>` : ""}
-      ${lead["phone"] && address ? '<div class="dot-sep"></div>' : ""}
-      ${address ? `<span class="lc-loc">${escHtml(address)}</span>` : ""}
-      ${rating ? `<div class="dot-sep"></div><span class="lc-rating">★ ${escHtml(String(rating))}</span>` : ""}
-      ${reviews ? `<span class="lc-reviews">(${escHtml(String(reviews))})</span>` : ""}
+      ${lead["phone"] && locShort ? '<div class="dot-sep"></div>' : ""}
+      ${locShort ? `<span class="lc-loc">${escHtml(locShort)}</span>` : ""}
     </div>
   </div>
   <div class="lc-chevron" onclick="toggleExpand('${rowId}',${lead._rowIndex})">
@@ -1335,11 +1420,10 @@
   <div class="lc-expand" id="exp-${rowId}">
     <div class="lc-expand-inner">
 
+      ${website ? `
       <div class="lc-info-strip">
-        ${website ? `<div class="info-item full"><label>Website</label><a href="${escHtml(website)}" target="_blank" rel="noopener">${escHtml(website)}</a></div>` : ""}
-        ${lead["place_id"] ? `<div class="info-item"><label>Place ID</label><span>${escHtml(String(lead["place_id"]))}</span></div>` : ""}
-        ${rating ? `<div class="info-item"><label>Rating</label><span>★ ${escHtml(String(rating))} &nbsp;(${escHtml(String(reviews))} reviews)</span></div>` : ""}
-      </div>
+        <div class="info-item full"><label>Website</label><a href="${escHtml(website)}" target="_blank" rel="noopener">${escHtml(website)}</a></div>
+      </div>` : ""}
 
       ${(timeSpend || finalResult) ? `
       <div class="lc-existing">
@@ -1371,7 +1455,11 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
           Saved
         </div>
-        <button class="btn btn-green btn-sm" onclick="saveRow(${lead._rowIndex},'${escAttr(SESSION.sheetUrl)}')">Save Changes</button>
+        <button class="btn btn-green btn-sm" id="savebtn-${lead._rowIndex}"
+          onclick="saveRow(${lead._rowIndex},'${escAttr(SESSION.sheetUrl)}')">
+          <span id="savebtn-text-${lead._rowIndex}">Save Changes</span>
+          <span id="savebtn-loader-${lead._rowIndex}" class="loader-sm-dark" style="display:none"></span>
+        </button>
       </div>
 
     </div>
@@ -1405,17 +1493,20 @@
       const finalResult = $("fr-" + rowIndex)?.value || "";
       const responded = finalResult && finalResult !== "" ? "Yes" : "No";
 
+      // ── Save button loading state ──
+      const btn = $("savebtn-" + rowIndex);
+      const btnText = $("savebtn-text-" + rowIndex);
+      const btnLoader = $("savebtn-loader-" + rowIndex);
+      if (btn) btn.disabled = true;
+      if (btnText) btnText.textContent = "Saving…";
+      if (btnLoader) btnLoader.style.display = "inline-block";
+
       try {
-        await callAPI({
-          action: "saveRow",
-          sheetUrl,
-          rowIndex: String(rowIndex),
-          timeSpend,
-          finalResult,
-          responded
-        });
+        await callAPI({ action: "saveRow", sheetUrl, rowIndex: String(rowIndex), timeSpend, finalResult, responded });
+
         const lead = ALL_LEADS.find(l => l._rowIndex === rowIndex);
         if (lead) { lead["time_spend"] = timeSpend; lead["final_result"] = finalResult; lead["responded"] = responded; }
+
         const ss = $("ss-" + rowIndex);
         if (ss) { ss.classList.add("show"); setTimeout(() => ss.classList.remove("show"), 2500); }
         showToast("Saved!", "success");
@@ -1423,6 +1514,10 @@
         renderLeads();
       } catch (e) {
         showToast("Save failed: " + e.message, "error");
+        // Restore button on error
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.textContent = "Save Changes";
+        if (btnLoader) btnLoader.style.display = "none";
       }
     }
 
