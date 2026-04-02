@@ -338,7 +338,6 @@
       flex-shrink: 0
     }
 
-    /* green-tinted loader for green button */
     .loader-sm-dark {
       width: 15px;
       height: 15px;
@@ -599,7 +598,6 @@
       gap: 10px
     }
 
-    /* ── Skeleton loader for leads ── */
     .skeleton-card {
       background: var(--s1);
       border: 1px solid var(--b1);
@@ -655,7 +653,6 @@
       width: 22%
     }
 
-    /* ── Lead cards ── */
     .lead-card {
       background: var(--s1);
       border: 1px solid var(--b1);
@@ -791,7 +788,7 @@
     }
 
     .lc-expand.open {
-      max-height: 700px
+      max-height: 800px
     }
 
     .lc-expand-inner {
@@ -891,6 +888,30 @@
 
     .exp-select:focus {
       border-color: var(--blue)
+    }
+
+    /* ── Custom reason field ── */
+    .custom-reason-wrap {
+      margin-top: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 4px
+    }
+
+    .custom-reason-wrap.show {
+      display: flex
+    }
+
+    .custom-reason-wrap label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--t3);
+      text-transform: uppercase;
+      letter-spacing: .07em
+    }
+
+    .custom-reason-wrap .exp-input {
+      border-color: rgba(79, 142, 247, .35)
     }
 
     .lc-existing {
@@ -1197,8 +1218,18 @@
   </div>
 
   <script>
-    // ── CONFIG ────────────────────────────────────────
     const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxesmhRM8qL12rzQoGBeTXmwmm-o_aGFVOnCxraf4y4nlLWmgf7j-b7qck5fxiE7ywr/exec";
+
+    // Preset options — "Other / Custom" triggers free-text input
+    const RESULT_OPTIONS = [
+      "Interested",
+      "Not Interested",
+      "Call Back",
+      "No Answer",
+      "Closed Deal",
+      "Wrong Number",
+      "Other / Custom"
+    ];
 
     let SESSION = null, ALL_LEADS = [], ACTIVE_FILTER = "all", EXPANDED_ROW = null, SYNC_INTERVAL = null;
 
@@ -1239,13 +1270,10 @@
     function saveSession(s) { SESSION = s; localStorage.setItem("it_session", JSON.stringify(s)); }
     function clearSession() { SESSION = null; localStorage.removeItem("it_session"); }
 
-    // ── Extract short location: "City, State" from full address ──
     function shortLocation(addr) {
       if (!addr) return "";
-      // Common pattern: "..., City, State, Country" or "City, State"
       const parts = addr.split(",").map(p => p.trim()).filter(Boolean);
       if (parts.length >= 2) {
-        // Take last 2 parts, drop known country strings
         const skipWords = ["india", "भारत"];
         const filtered = parts.filter(p => !skipWords.includes(p.toLowerCase()));
         if (filtered.length >= 2) {
@@ -1254,6 +1282,11 @@
         return filtered[filtered.length - 1] || parts[0];
       }
       return parts[0] || addr;
+    }
+
+    // ── Determine if a saved finalResult is a preset or custom ──
+    function isPreset(val) {
+      return !val || RESULT_OPTIONS.slice(0, -1).includes(val); // exclude "Other / Custom"
     }
 
     async function doLogin() {
@@ -1298,7 +1331,6 @@
       SYNC_INTERVAL = setInterval(refreshLeads, 60000);
     }
 
-    // ── Show skeleton cards while loading ──
     function showSkeletons(count = 5) {
       const container = $("leads-list");
       container.innerHTML = Array.from({ length: count }, () => `
@@ -1398,6 +1430,17 @@
         const website = lead["website"] || "";
         const locShort = shortLocation(lead["address"] || "");
 
+        // Determine if the saved value is a preset or custom text
+        const savedIsPreset = isPreset(finalResult);
+        const selectVal = savedIsPreset ? finalResult : "Other / Custom";
+        const customVal = savedIsPreset ? "" : finalResult;
+        const showCustom = !savedIsPreset;
+
+        // Build select options
+        const optionsHtml = RESULT_OPTIONS.map(opt =>
+          `<option value="${escHtml(opt)}" ${selectVal === opt ? "selected" : ""}>${escHtml(opt)}</option>`
+        ).join("");
+
         return `
 <div class="lead-card${responded ? " responded" : ""}" id="${rowId}">
   <div class="lc-top" onclick="toggleExpand('${rowId}',${lead._rowIndex})">
@@ -1438,15 +1481,17 @@
         </div>
         <div class="expand-field">
           <label>Final Result</label>
-          <select class="exp-select" id="fr-${lead._rowIndex}">
+          <select class="exp-select" id="fr-${lead._rowIndex}" onchange="handleResultChange(${lead._rowIndex})">
             <option value="">—Select—</option>
-            <option value="Interested"     ${finalResult === "Interested" ? "selected" : ""}>Interested</option>
-            <option value="Not Interested" ${finalResult === "Not Interested" ? "selected" : ""}>Not Interested</option>
-            <option value="Call Back"      ${finalResult === "Call Back" ? "selected" : ""}>Call Back</option>
-            <option value="No Answer"      ${finalResult === "No Answer" ? "selected" : ""}>No Answer</option>
-            <option value="Closed Deal"    ${finalResult === "Closed Deal" ? "selected" : ""}>Closed Deal</option>
-            <option value="Wrong Number"   ${finalResult === "Wrong Number" ? "selected" : ""}>Wrong Number</option>
+            ${optionsHtml}
           </select>
+          <div class="custom-reason-wrap${showCustom ? " show" : ""}" id="custom-wrap-${lead._rowIndex}">
+            <label>Custom Reason</label>
+            <input class="exp-input" type="text" id="fr-custom-${lead._rowIndex}"
+              value="${escHtml(customVal)}"
+              placeholder="Type your reason…"
+              maxlength="120" />
+          </div>
         </div>
       </div>
 
@@ -1466,6 +1511,20 @@
   </div>
 </div>`;
       }).join("");
+    }
+
+    // ── Show/hide custom reason input based on dropdown selection ──
+    function handleResultChange(rowIndex) {
+      const select = $("fr-" + rowIndex);
+      const customWrap = $("custom-wrap-" + rowIndex);
+      const customInput = $("fr-custom-" + rowIndex);
+      if (select.value === "Other / Custom") {
+        customWrap.classList.add("show");
+        customInput.focus();
+      } else {
+        customWrap.classList.remove("show");
+        customInput.value = "";
+      }
     }
 
     function toggleExpand(rowId, rowIndex) {
@@ -1490,10 +1549,22 @@
 
     async function saveRow(rowIndex, sheetUrl) {
       const timeSpend = $("ts-" + rowIndex)?.value.trim() || "";
-      const finalResult = $("fr-" + rowIndex)?.value || "";
-      const responded = finalResult && finalResult !== "" ? "Yes" : "No";
+      const selectVal = $("fr-" + rowIndex)?.value || "";
 
-      // ── Save button loading state ──
+      // ── Resolve final result: use custom text if "Other / Custom" selected ──
+      let finalResult = selectVal;
+      if (selectVal === "Other / Custom") {
+        const customText = $("fr-custom-" + rowIndex)?.value.trim() || "";
+        if (!customText) {
+          showToast("Please enter a custom reason", "error");
+          $("fr-custom-" + rowIndex)?.focus();
+          return;
+        }
+        finalResult = customText;
+      }
+
+      const responded = finalResult ? "Yes" : "No";
+
       const btn = $("savebtn-" + rowIndex);
       const btnText = $("savebtn-text-" + rowIndex);
       const btnLoader = $("savebtn-loader-" + rowIndex);
@@ -1514,7 +1585,6 @@
         renderLeads();
       } catch (e) {
         showToast("Save failed: " + e.message, "error");
-        // Restore button on error
         if (btn) btn.disabled = false;
         if (btnText) btnText.textContent = "Save Changes";
         if (btnLoader) btnLoader.style.display = "none";
