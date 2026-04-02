@@ -1198,7 +1198,7 @@
 
   <script>
     // ── CONFIG ────────────────────────────────────────
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwDZlPNTWmBmopuitiKJ8l1sBbA78SjKEHj9sn08w9xG9LgkxixUiBkmUKviH9VZj7X/exec";
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxesmhRM8qL12rzQoGBeTXmwmm-o_aGFVOnCxraf4y4nlLWmgf7j-b7qck5fxiE7ywr/exec";
 
     let SESSION = null, ALL_LEADS = [], ACTIVE_FILTER = "all", EXPANDED_ROW = null, SYNC_INTERVAL = null;
 
@@ -1293,7 +1293,7 @@
       $("tb-user-label").textContent = SESSION.displayName;
       $("tb-avatar").textContent = SESSION.displayName.charAt(0).toUpperCase();
       showScreen("screen-dash");
-      refreshLeads();
+      refreshLeads(false);
       if (SYNC_INTERVAL) clearInterval(SYNC_INTERVAL);
       SYNC_INTERVAL = setInterval(refreshLeads, 60000);
     }
@@ -1318,7 +1318,7 @@
       $("stat-done").textContent = "…";
     }
 
-    async function refreshLeads(silent = false) {
+    async function refreshLeads(silent = true) {
       if (!silent) showSkeletons();
       try {
         const res = await callAPI({ action: "getLeads", sheetUrl: SESSION.sheetUrl });
