@@ -1273,15 +1273,11 @@
     function shortLocation(addr) {
       if (!addr) return "";
       const parts = addr.split(",").map(p => p.trim()).filter(Boolean);
-      if (parts.length >= 2) {
-        const skipWords = ["india", "भारत"];
-        const filtered = parts.filter(p => !skipWords.includes(p.toLowerCase()));
-        if (filtered.length >= 2) {
-          return filtered[filtered.length - 2] + ", " + filtered[filtered.length - 1];
-        }
-        return filtered[filtered.length - 1] || parts[0];
+      if (parts.length >= 3) {
+        // Show last 3 parts
+        return parts.slice(-3).join(", ");
       }
-      return parts[0] || addr;
+      return parts.join(", ");
     }
 
     // ── Determine if a saved finalResult is a preset or custom ──
@@ -1409,6 +1405,7 @@
         return true;
       });
 
+
       $("leads-count").textContent = visible.length;
       const container = $("leads-list");
 
@@ -1428,7 +1425,11 @@
         const timeSpend = lead["time_spend"] || "";
         const finalResult = lead["final_result"] || "";
         const website = lead["website"] || "";
-        const locShort = shortLocation(lead["address"] || "");
+        const address = lead["address"] || "";
+        const locShort = shortLocation(address);
+        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+        // const locShort = shortLocation(lead["address"] || "");
 
         // Determine if the saved value is a preset or custom text
         const savedIsPreset = isPreset(finalResult);
@@ -1454,7 +1455,7 @@
     <div class="lc-row2">
       ${lead["phone"] ? `<a class="lc-phone" href="tel:${escHtml(lead["phone"])}" onclick="event.stopPropagation()">${escHtml(lead["phone"])}</a>` : ""}
       ${lead["phone"] && locShort ? '<div class="dot-sep"></div>' : ""}
-      ${locShort ? `<span class="lc-loc">${escHtml(locShort)}</span>` : ""}
+      ${locShort ? `<span class="lc-loc">${escHtml(address)}</span>` : ""}
     </div>
   </div>
   <div class="lc-chevron" onclick="toggleExpand('${rowId}',${lead._rowIndex})">
